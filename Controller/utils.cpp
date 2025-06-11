@@ -86,7 +86,7 @@ namespace miniDB {
         if ( args.size() != 1 ){ throw except_t(args[0]); }
 
         apify::add( *ws_client ).emit( "WIPE", "/api/v1/db", "WIPE" );
-        cli.write( "*\n" );
+        cli.write( ":1\r\n" );
 
     }
 
@@ -104,24 +104,27 @@ namespace miniDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
+            auto blk = queue_t<string_t>();
+
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
+                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
             });
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}'"
             , cmd.kid, date::now() ), [=]( sql_item_t item ){ try {
-                auto value = encoder::base64::btoa( item["VAL"] );
-                if( !regex::test( value, cmd.val ) ){ return; }
-                cli.write( regex::format( "$${0}\n", value ) );
+                auto val = encoder::base64::btoa( item["VAL"] );
+                if( !regex::test( val, cmd.val ) ){ return; }
+                blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             } catch(...) {} });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -149,7 +152,7 @@ namespace miniDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( regex::format("$${0}\n<>\n",*idx) );
+                cli.write( regex::format(":${0}\r\n",*idx) );
             });
 
             sql.exec( regex::format(
@@ -162,7 +165,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -186,27 +189,31 @@ namespace miniDB {
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             auto lim = type::bind( string::to_ulong( args[4] ) );
             auto off = type::bind( string::to_ulong( args[3] ) );
+            auto blk = queue_t<string_t>();
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
-                object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" ); sql.free();
+                object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) )); sql.free();
+                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
+                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
             });
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
             , cmd.kid, date::now() ), [=]( sql_item_t item ){ try {
-                auto value = encoder::base64::btoa( item["VAL"] );
-                if( !regex::test( value, cmd.val ) ){ return; }
+                auto val = encoder::base64::btoa( item["VAL"] );
+                if( !regex::test( val, cmd.val ) ){ return; }
                 if( *off != 0 ){ *off-=1; return;  }
                 if( *lim == 0 ){ throw except_t(); }*lim-=1;
-                cli.write( regex::format( "$${0}\n", value ) );
+                blk.push( regex::format( 
+                    "$${0}\r\n${1}\r\n", val.size(), val
+                ));
             } catch(...) { sql.close(); } });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -232,7 +239,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.exec( regex::format(
@@ -248,7 +255,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -294,7 +301,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format(
@@ -304,7 +311,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -330,19 +337,19 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+            //  cli.write( "$-1\r\n" );
             });
 
             sql.exec( regex::format(
                 "SELECT COUNT(*) FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
             , cmd.kid, date::now() ), [=]( sql_item_t item ){
-                cli.write( regex::format( "$${0}\n", item["COUNT(*)"] ));
+              cli.write( regex::format( ":${0}\r\n", item["COUNT(*)"] ));
             });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -368,21 +375,19 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+            //  cli.write( "$-1\r\n" );
             });
 
             sql.exec( regex::format(
-                "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
+                "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 1"
             , cmd.kid, date::now() ), [=]( sql_item_t item ){
-                cli.write( regex::format( "$${0}\n",
-                   encoder::base64::btoa( item["VAL"] )
-                ));
+              cli.write( regex::format( ":${0}\r\n", encoder::base64::btoa(item["VAL"]) ));
             });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -411,7 +416,7 @@ namespace miniDB {
             , cmd.kid, date::now() )); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.exec( regex::format( R"(
@@ -425,7 +430,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -451,7 +456,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+            //  cli.write( "$-1\r\n" );
             });
 
             sql.exec( regex::format(
@@ -462,16 +467,16 @@ namespace miniDB {
                 auto NOW = date  ::now();
 
                 if( EXP == 0 || NOW >= EXP )
-                  { cli.write( "$-1\n" ); return; }
+                  { cli.write( ":-1\r\n" ); return; }
 
-                cli.write( regex::format( "$${0}\n", EXP-NOW ));
+                cli.write( regex::format( ":${0}\r\n", EXP-NOW ));
 
             });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -498,7 +503,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format(
@@ -508,7 +513,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -541,7 +546,7 @@ namespace miniDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             if( val.size()==1 ) {
@@ -566,7 +571,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -599,7 +604,7 @@ namespace miniDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             if( val.size()==1 ) {
@@ -624,7 +629,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -660,7 +665,7 @@ namespace miniDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format(
@@ -670,7 +675,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -693,7 +698,8 @@ namespace miniDB {
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             if( !fs::exists_file(dir) ){ throw except_t(); }
 
-            auto sql = get_sqlite_db( dir ); auto raw = sql.exec( regex::format(
+            auto blk = queue_t<string_t>(); auto sql = get_sqlite_db( dir ); 
+            auto raw = sql.exec( regex::format(
                 "SELECT COUNT(*) FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
             , cmd.kid, date::now() )); if( raw.empty() ){ throw ""; }
 
@@ -706,21 +712,21 @@ namespace miniDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
+                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
             });
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT ${2} OFFSET ${3}"
             , cmd.kid, date::now(), (slc[2]-1), slc[0] ), [=]( sql_item_t item ){
-                cli.write( regex::format( "$${0}\n",
-                   encoder::base64::btoa( item["VAL"] )
-                ));
+                auto val = encoder::base64::btoa( item["VAL"] );
+                blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             });
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -747,7 +753,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format( R"(
@@ -761,7 +767,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -790,7 +796,7 @@ namespace miniDB {
             )); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             if( val.empty() ){ throw except_t(); }
@@ -802,7 +808,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -828,7 +834,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format(
@@ -838,7 +844,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
@@ -863,7 +869,7 @@ namespace miniDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( "*\n" );
+                cli.write( ":1\r\n" );
             });
 
             sql.emit( regex::format(
@@ -873,7 +879,7 @@ namespace miniDB {
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
               object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-              cli.write( "*\n" );
+              cli.write( "$-1\r\n" );
         } });
 
         cmd.qid = get_item_qid( cmd );
