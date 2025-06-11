@@ -333,16 +333,17 @@ namespace miniDB {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             if( !fs::exists_file(dir) ){ throw except_t(); }
+            auto dne = type::bind( new bool(0) );
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-            //  cli.write( "$-1\r\n" );
+                if( !(*dne) ){ cli.write( "$-1\r\n" ); }
             });
 
             sql.exec( regex::format(
                 "SELECT COUNT(*) FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
-            , cmd.kid, date::now() ), [=]( sql_item_t item ){
+            , cmd.kid, date::now() ), [=]( sql_item_t item ){ (*dne) = 1;
               cli.write( regex::format( ":${0}\r\n", item["COUNT(*)"] ));
             });
 
@@ -371,16 +372,17 @@ namespace miniDB {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             if( !fs::exists_file(dir) ){ throw except_t(); }
+            auto dne = type::bind( new bool(0) );
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-            //  cli.write( "$-1\r\n" );
+                if( !(*dne) ){ cli.write( "$-1\r\n" ); }
             });
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 1"
-            , cmd.kid, date::now() ), [=]( sql_item_t item ){
+            , cmd.kid, date::now() ), [=]( sql_item_t item ){ (*dne) = 1;
               cli.write( regex::format( ":${0}\r\n", encoder::base64::btoa(item["VAL"]) ));
             });
 
@@ -452,11 +454,12 @@ namespace miniDB {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             if( !fs::exists_file(dir) ){ throw except_t(); }
+            auto dne = type::bind( new bool(0) );
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-            //  cli.write( "$-1\r\n" );
+                if( !(*dne) ){ cli.write( "$-1\r\n" ); }
             });
 
             sql.exec( regex::format(
@@ -464,7 +467,7 @@ namespace miniDB {
             , cmd.kid, date::now() ), [=]( sql_item_t item ){
 
                 auto EXP = string::to_ulong( item["EXP"] );
-                auto NOW = date  ::now();
+                auto NOW = date  ::now(); *dne=1;
 
                 if( EXP == 0 || NOW >= EXP )
                   { cli.write( ":-1\r\n" ); return; }

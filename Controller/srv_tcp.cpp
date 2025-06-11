@@ -21,8 +21,8 @@ public:
         auto match = regex::get_memory( cmd, PATTERN );
         auto self  = type ::bind( this );
 
-          if( match.empty() ) { throw except_t(); } while( !match.empty() ) {
-          if( regex::test(match[0],"quit"    ,true) ){                      throw except_t(); }
+          if( match.empty() ) { throw ""; } while( !match.empty() ) {
+          if( regex::test(match[0],"quit"    ,true) ){ cli.close(); list.free();    throw ""; }
         elif( regex::test(match[0],"flushall",true) ){ cmd_wipe(match,cli);         continue; }
         elif( regex::test(match[0],"mcount"  ,true) ){ cmd_match_count(match,self); continue; }
         elif( regex::test(match[0],"mrange"  ,true) ){ cmd_match_range(match,self); continue; }
@@ -42,10 +42,13 @@ public:
         elif( regex::test(match[0],"push"    ,true) ){ cmd_push(match,self);        continue; }
         elif( regex::test(match[0],"trim"    ,true) ){ cmd_trim(match,self);        continue; }
         elif( regex::test(match[0],"count"   ,true) ){ cmd_count(match,self);       continue; }
-        elif( regex::test(match[0],"range"   ,true) ){ cmd_range(match,self);       continue; } 
-        throw except_t(match[0]); }
+        elif( regex::test(match[0],"range"   ,true) ){ cmd_range(match,self);       continue; } throw ""; }
 
-    } catch(...) { list.free(); cli.close(); }}
+    } catch(...) { 
+        string_t msg = "something went wrong";
+        string_t err = regex::format( ":-${0} ${1}\r\n",msg.size(),msg );
+        cli.write( err ); list.free();
+    }}
 
     /*.........................................................................*/
 
