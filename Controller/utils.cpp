@@ -24,7 +24,8 @@ namespace miniDB { string_t get_item_fid( string_t key ){
 
 namespace miniDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
 
-    if( size==0 || x == y ){ return nullptr; } // if( y>0 ){ y--; }
+    if( size==0 ){ return nullptr; } // if( y>0 ){ y--; }
+    if( x == y  ){ return ptr_t<ulong>({ (ulong)0, size, size }); }
 
     if( x < 0 ){ x = size+x; } if( (ulong)x > size ){ return nullptr; }
     if( y < 0 ){ y = size+y; } if( (ulong)y > size ){ y = size;       }
@@ -32,7 +33,7 @@ namespace miniDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
 
     ulong a = clamp( (ulong)y, 0UL, size );
     ulong b = clamp( (ulong)x, 0UL, a    );
-    ulong c = a - b + 1;
+    ulong c = a - b;
 
     return ptr_t<ulong>({ b, a, c });
 
@@ -673,7 +674,7 @@ namespace miniDB {
 
             sql.emit( regex::format(
                 "DELETE FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT ${2} OFFSET ${3}"
-            , cmd.kid, date::now(), (slc[2]-1), slc[0] ) );
+            , cmd.kid, date::now(), slc[2], slc[0] ) );
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -721,7 +722,7 @@ namespace miniDB {
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT ${2} OFFSET ${3}"
-            , cmd.kid, date::now(), (slc[2]-1), slc[0] ), [=]( sql_item_t item ){
+            , cmd.kid, date::now(), slc[2], slc[0] ), [=]( sql_item_t item ){
                 auto val = encoder::base64::btoa( item["VAL"] );
                 blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             });
