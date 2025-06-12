@@ -3,7 +3,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { GENERATOR( cmd_task ){
+namespace cocoDB { GENERATOR( cmd_task ){
 public: 
     
     ptr_t<uchar>  state=ptr_t<uchar>({ 1, 0 });
@@ -81,7 +81,7 @@ public:
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void run_v1_tcp_server(){
+namespace cocoDB { void run_v1_tcp_server(){
 
     auto tenv= process::env::get( "SOCK_TIMEOUT" );
     auto penv= process::env::get( "SOCK_PORT" );

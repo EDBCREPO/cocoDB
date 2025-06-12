@@ -2,7 +2,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void run_v1_process() { process::task::add([=](){
+namespace cocoDB { void run_v1_process() { process::task::add([=](){
 coStart ; coDelay( TIME_HOURS(string::to_ulong(process::env::get("TMP_TIMEOUT"))) );
 
     fs::read_folder( process::env::get("STORAGE_PATH"),[=]( string_t name ){

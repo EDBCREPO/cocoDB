@@ -2,7 +2,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
+namespace cocoDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
     apify_host_t<ws_t> app; queue_t<object_t> list;
     auto flush = type::bind( new bool(false) );
     map_t<string_t,string_t> queue;
@@ -53,7 +53,7 @@ namespace miniDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void run_v1_ws_server(){
+namespace cocoDB { void run_v1_ws_server(){
 
     auto penv= process::env::get( "APIF_PORT" );
     auto port= string::to_uint( penv );

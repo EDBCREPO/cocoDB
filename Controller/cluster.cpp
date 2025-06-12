@@ -2,7 +2,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void cluster_reset( ptr_t<bool> state ) { try {
+namespace cocoDB { void cluster_reset( ptr_t<bool> state ) { try {
 
     if( process::is_child() ){ throw ""; }
     if( *state==false )      { throw ""; }
@@ -18,7 +18,7 @@ namespace miniDB { void cluster_reset( ptr_t<bool> state ) { try {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void run_v1_cluster() { try {
+namespace cocoDB { void run_v1_cluster() { try {
     if( process::is_child() ){ throw ""; }
     ptr_t<bool> state =new bool( true );
 

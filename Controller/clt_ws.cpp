@@ -2,7 +2,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { apify_host_t<ws_t> run_v1_ws_client_routine(){
+namespace cocoDB { apify_host_t<ws_t> run_v1_ws_client_routine(){
     apify_host_t<ws_t> app;
 
     app.on("FLUSH","/api/v1/db",[=]( apify_t<ws_t> cli ){ try {
@@ -31,7 +31,7 @@ namespace miniDB { apify_host_t<ws_t> run_v1_ws_client_routine(){
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { void run_v1_ws_client(){ try {
+namespace cocoDB { void run_v1_ws_client(){ try {
 
     auto penv= process::env::get( "APIF_PORT" );
     auto port= string::to_uint( penv );

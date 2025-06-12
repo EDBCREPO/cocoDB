@@ -2,7 +2,7 @@
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB {
+namespace cocoDB {
 
     event_t<string_t> onSignalEvent;
 
@@ -17,12 +17,12 @@ namespace miniDB {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { string_t get_item_fid( string_t key ){
-    auto name = regex::format( "${0}_MINIDB_BUCKET", encoder::hash::get(key) );
+namespace cocoDB { string_t get_item_fid( string_t key ){
+    auto name = regex::format( "${0}_cocoDB_BUCKET", encoder::hash::get(key) );
     auto hash = crypto::hash::SHA1(); hash.update( name ); return hash.get();
 }}
 
-namespace miniDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
+namespace cocoDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
 
     if( size==0 ){ return nullptr; } // if( y>0 ){ y--; }
     if( x == y  ){ return ptr_t<ulong>({ (ulong)0, size, size }); }
@@ -39,12 +39,12 @@ namespace miniDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
 
 }}
 
-namespace miniDB { string_t get_item_kid( string_t key ){
+namespace cocoDB { string_t get_item_kid( string_t key ){
     auto   hash = crypto::hash::SHA1(); hash.update(key);
     return hash.get();
 }}
 
-namespace miniDB { string_t get_item_qid( cmd_t& item ){
+namespace cocoDB { string_t get_item_qid( cmd_t& item ){
     auto mem = string_t( sizeof(cmd_t),'\0' );
     memcpy( mem.get(), &item, sizeof(cmd_t) );
     auto hash= crypto::hash::SHA1(); hash.update(mem);
@@ -53,13 +53,13 @@ namespace miniDB { string_t get_item_qid( cmd_t& item ){
     return hash.get();
 }}
 
-namespace miniDB { ulong get_exp_val( string_t& val ){
+namespace cocoDB { ulong get_exp_val( string_t& val ){
     auto   EXP= string::to_ulong( val );
     auto   NOW= date  ::now();
     return EXP==0?0:(EXP+NOW);
 }}
 
-namespace miniDB { string_t get_item_rid( cmd_t& item ){
+namespace cocoDB { string_t get_item_rid( cmd_t& item ){
     auto hash= crypto::hash::SHA1();
     hash.update( string::to_string(process::now()) );
     hash.update( encoder::key::generate(32) );
@@ -68,7 +68,7 @@ namespace miniDB { string_t get_item_rid( cmd_t& item ){
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB { sqlite_t get_sqlite_db( string_t path ) {
+namespace cocoDB { sqlite_t get_sqlite_db( string_t path ) {
     sqlite_t db( path ); try { db.exec(
     R"( CREATE TABLE IF NOT EXISTS BUCKET (
         KID TEXT   NOT NULL, RID TEXT NOT NULL,
@@ -79,7 +79,7 @@ namespace miniDB { sqlite_t get_sqlite_db( string_t path ) {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB {
+namespace cocoDB {
 
     template< class T >
     void cmd_wipe( array_t<string_t>& match, T& cli ){
@@ -269,7 +269,7 @@ namespace miniDB {
 
 /*────────────────────────────────────────────────────────────────────────────*/
 
-namespace miniDB {
+namespace cocoDB {
 
     template< class T >
     void cmd_shortex( array_t<string_t>& match, T& self ){

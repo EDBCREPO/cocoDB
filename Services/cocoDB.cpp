@@ -21,7 +21,7 @@ queue_t<ws_t> ws_list ; ptr_t<ws_t> ws_client;
 
 void onMain(){
     process::env::init(".env");
-    miniDB::run_v1_cluster();
+    cocoDB::run_v1_cluster();
 }
 
 /*────────────────────────────────────────────────────────────────────────────*/
