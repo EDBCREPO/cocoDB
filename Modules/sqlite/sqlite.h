@@ -50,7 +50,7 @@ public:
                  object[col[x]] = y ? y : "NULL";
             }
 
-        cb(object); }while(0); coTry(1); coYield(2);
+        cb(object); } while(0); coStay(1); coYield(2);
         sqlite3_finalize(res); self->release();
 
     gnStop
@@ -124,10 +124,12 @@ public:
         process::poll::add( task, res, cb, self );
     }
 
-    void emit( const string_t& cmd ) const {
-        if( cmd.empty() || obj->state==0 || obj->fd==nullptr ){ return; }
-        function_t<void,sql_item_t> cb = [&]( sql_item_t ){};
+    /*─······································································─*/
 
+    void async( const string_t& cmd ) const {
+        if( cmd.empty() || obj->state==0 || obj->fd==nullptr ){ return; }
+
+        function_t<void,sql_item_t> cb = [&]( sql_item_t ){ };
         _sqlite_::cb task; auto self = type::bind( this );
         sqlite3_stmt *res; int rc; char* msg;
 
@@ -139,11 +141,26 @@ public:
         process::poll::add( task, res, cb, self );
     }
 
+    void await( const string_t& cmd ) const {
+        if( cmd.empty() || obj->state==0 || obj->fd==nullptr ){ return; }
+
+        function_t<void,sql_item_t> cb = [&]( sql_item_t ){ };
+        _sqlite_::cb task; auto self = type::bind( this );
+        sqlite3_stmt *res; int rc; char* msg;
+
+        if( sqlite3_prepare_v2( obj->fd, cmd.get(), -1, &res, NULL ) != SQLITE_OK ) {
+            string_t message ( sqlite3_errmsg( obj->fd ) );
+            process::error( "SQL Error: ", message );
+        }   if( res == NULL ) { return; }
+
+        process::await( task, res, cb, self );
+    }
+
     /*─······································································─*/
 
     void use()          const noexcept { if( obj->used==1 ){ return; } obj->used=1; onUse    .emit(); }
     void release()      const noexcept { if( obj->used==0 ){ return; } obj->used=0; onRelease.emit(); }
-    
+
     bool is_closed()    const noexcept { return obj->state == 0; }
     bool is_available() const noexcept { return obj->state != 0; }
     bool is_used()      const noexcept { return obj->used; }

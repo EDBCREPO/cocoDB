@@ -22,18 +22,18 @@ public:
         auto self  = type ::bind( this );
 
           if( match.empty() ) { throw ""; } while( !match.empty() ) {
-          if( regex::test(match[0],"quit"    ,true) ){ cli.close(); list.free();    throw ""; }
-        elif( regex::test(match[0],"flushall",true) ){ cmd_wipe(match,cli);         continue; }
+          if( regex::test(match[0],"flushall",true) ){ cmd_wipe(match,cli);         continue; }
         elif( regex::test(match[0],"mcount"  ,true) ){ cmd_match_count(match,self); continue; }
         elif( regex::test(match[0],"mrange"  ,true) ){ cmd_match_range(match,self); continue; }
+        elif( regex::test(match[0],"expire"  ,true) ){ cmd_expire(match,self);      continue; }
         elif( regex::test(match[0],"match"   ,true) ){ cmd_match(match,self);       continue; }
         elif( regex::test(match[0],"flush"   ,true) ){ cmd_flush(match,self);       continue; }
+        elif( regex::test(match[0],"quit"    ,true) ){ cli.close();                 throw ""; }
         elif( regex::test(match[0],"mdel"    ,true) ){ cmd_match_delete(match,self);continue; }
         elif( regex::test(match[0],"del"     ,true) ){ cmd_delete(match,self);      continue; }
         elif( regex::test(match[0],"get"     ,true) ){ cmd_get(match,self);         continue; }
         elif( regex::test(match[0],"set"     ,true) ){ cmd_set(match,self);         continue; }
         elif( regex::test(match[0],"ttl"     ,true) ){ cmd_ttl(match,self);         continue; }
-        elif( regex::test(match[0],"exp"     ,true) ){ cmd_expire(match,self);      continue; }
         elif( regex::test(match[0],"ex"      ,true) ){ cmd_shortex(match,self);     continue; }
         elif( regex::test(match[0],"inc"     ,true) ){ cmd_increase(match,self);    continue; }
         elif( regex::test(match[0],"dec"     ,true) ){ cmd_decrease(match,self);    continue; }

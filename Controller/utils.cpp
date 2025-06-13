@@ -9,8 +9,7 @@ namespace cocoDB {
     struct cmd_t {
         function_t<void,socket_t,cmd_t> callback;
         string_t cmd; string_t val; string_t exp;
-        string_t key; string_t fid; string_t qid;
-        string_t kid;
+        string_t fid; string_t qid; string_t kid;
     };
 
 }
@@ -18,7 +17,7 @@ namespace cocoDB {
 /*────────────────────────────────────────────────────────────────────────────*/
 
 namespace cocoDB { string_t get_item_fid( string_t key ){
-    auto name = regex::format( "${0}_cocoDB_BUCKET", encoder::hash::get(key) );
+    auto name = regex::format( "${0}_COCOS_BUCKET", encoder::hash::get(key) );
     auto hash = crypto::hash::SHA1(); hash.update( name ); return hash.get();
 }}
 
@@ -87,7 +86,7 @@ namespace cocoDB {
         if ( args.size() != 1 ){ throw except_t(args[0]); }
 
         apify::add( *ws_client ).emit( "WIPE", "/api/v1/db", "WIPE" );
-        cli.write( ":1\r\n" );
+        cli.write( "+OK\r\n" );
 
     }
 
@@ -99,7 +98,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "MATCH";
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -110,8 +108,10 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
-                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
+                auto data = regex::format( "*${0}\r\n", blk.size() );
+                auto n=blk.first(); while( n!=nullptr ){ 
+                    data += n->data; n=n->next; 
+                }   cli.write( data );
             });
 
             sql.exec( regex::format(
@@ -142,7 +142,6 @@ namespace cocoDB {
         cmd.kid = get_item_kid(args[1]);
         cmd.cmd = "MCOUNT";
         cmd.val = args[2] ;
-        cmd.key = args[1] ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
@@ -182,7 +181,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2] ;
-        cmd.key = args[1] ;
         cmd.cmd = "MRANGE";
 
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
@@ -195,8 +193,10 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) )); sql.free();
-                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
-                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
+                auto data = regex::format( "*${0}\r\n", blk.size() );
+                auto n=blk.first(); while( n!=nullptr ){ 
+                    data += n->data; n=n->next; 
+                }   cli.write( data );
             });
 
             sql.exec( regex::format(
@@ -206,9 +206,7 @@ namespace cocoDB {
                 if( !regex::test( val, cmd.val ) ){ return; }
                 if( *off != 0 ){ *off-=1; return;  }
                 if( *lim == 0 ){ throw except_t(); }*lim-=1;
-                blk.push( regex::format( 
-                    "$${0}\r\n${1}\r\n", val.size(), val
-                ));
+                blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             } catch(...) { sql.close(); } });
 
         } catch(...) {
@@ -230,7 +228,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "MDEL" ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -240,7 +237,7 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
             sql.exec( regex::format(
@@ -248,8 +245,8 @@ namespace cocoDB {
             , cmd.kid, date::now() ), [=]( sql_item_t item ){ try {
                 auto value = encoder::base64::btoa( item["VAL"] );
                 if( !regex::test( value, cmd.val ) ){ return; }
-            get_sqlite_db( dir ).emit( regex::format(
-                "DELETE FROM BUCKET WHERE RID='${0}' OR (EXP<>0 AND EXP<${1})",
+            get_sqlite_db( dir ).async( regex::format(
+                "DELETE FROM BUCKET WHERE RID='${0}'",
                 item["RID"], date::now()
             )); } catch(...) {} });
 
@@ -291,7 +288,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "DEL"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -302,11 +298,11 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' OR (EXP<>0 AND EXP<${1})"
+            sql.async( regex::format(
+                "DELETE FROM BUCKET WHERE KID='${0}'"
             , cmd.kid, date::now() ));
 
         } catch(...) {
@@ -327,7 +323,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "COUNT";
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -366,25 +361,28 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "GET"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             if( !fs::exists_file(dir) ){ throw except_t(); }
-            auto dne = type::bind( new bool(0) );
+            auto blk = queue_t<string_t>(); 
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                if( !(*dne) ){ cli.write( "$-1\r\n" ); }
+                auto data = regex::format( "*${0}\r\n", blk.size() );
+                auto n=blk.first(); while( n!=nullptr ){ 
+                    data += n->data; n=n->next; 
+                }   cli.write( data );
             });
 
             sql.exec( regex::format(
                 "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 1"
-            , cmd.kid, date::now() ), [=]( sql_item_t item ){ (*dne) = 1;
-              cli.write( regex::format( ":${0}\r\n", encoder::base64::btoa(item["VAL"]) ));
+            , cmd.kid, date::now() ), [=]( sql_item_t item ){ 
+                auto val = encoder::base64::btoa( item["VAL"] );
+                blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             });
 
         } catch(...) {
@@ -406,29 +404,39 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "SET"  ;
         cmd.exp = "0"    ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-
-            auto sql = get_sqlite_db( dir ); sql.exec( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' OR (EXP<>0 AND EXP<${1})"
-            , cmd.kid, date::now() )); sql.onRelease.once([=](){
+            auto sql = get_sqlite_db( dir ); auto item=sql.exec( regex::format(
+                "SELECT RID FROM BUCKET WHERE KID='${0}' LIMIT 1"
+            , cmd.kid, date::now() )); 
+            
+            sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.exec( regex::format( R"(
-                INSERT INTO BUCKET ( NOW, RID, KID, EXP, VAL )
-                VALUES  ( ${0}, '${1}', '${2}', ${3}, '${4}' );
-            )", date::now(), get_item_rid( cmd ),
-                cmd.kid, get_exp_val( cmd.exp ),
-                encoder::base64::atob(cmd.val)
-            ));
+            if( !item.empty() ){
+
+                sql.exec( regex::format( R"(
+                    UPDATE BUCKET SET NOW=${0}, EXP=${1}, VAL='${2}' WHERE RID='${3}' LIMIT 1
+                )", date::now(), get_exp_val(cmd.exp), encoder::base64::atob(cmd.val), item[0]["RID"] ));
+
+            } else {
+
+                sql.exec( regex::format( R"(
+                    INSERT INTO BUCKET ( NOW, RID, KID, EXP, VAL )
+                    VALUES  ( ${0}, '${1}', '${2}', ${3}, '${4}' );
+                )", date::now(), get_item_rid( cmd ),
+                    cmd.kid, get_exp_val( cmd.exp ),
+                    encoder::base64::atob(cmd.val)
+                ));
+
+            }
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -448,7 +456,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "TTL"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -495,7 +502,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.val = args[2];
         cmd.cmd = "EXP"  ;
 
@@ -507,10 +513,10 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format(
+            sql.async( regex::format(
                 "UPDATE BUCKET SET EXP=${0} WHERE KID='${1}' AND (EXP=0 OR EXP>${2})"
             ,   get_exp_val( cmd.val ), cmd.kid, date::now() ));
 
@@ -533,37 +539,34 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "INC"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            auto idx = type::bind( new llong( string::to_llong(cmd.val) ) );
+            auto idx = type::bind( new llong( string::to_llong( cmd.val ) ) );
 
-            auto sql = get_sqlite_db( dir ); auto val = sql.exec( regex::format(
-                "SELECT VAL FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 2"
-            , cmd.kid, date::now() )); if( val.size()>1 ){ sql.exec( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' OR (EXP<>0 AND EXP<${1})"
-            , cmd.kid, date::now() ));}
+            auto sql = get_sqlite_db(dir); auto item=sql.exec( regex::format(
+                "SELECT VAL,RID FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 1"
+            , cmd.kid, date::now() ));
 
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            if( val.size()==1 ) {
+            if( !item.empty() ) {
 
-                *idx = string::to_llong( encoder::base64::btoa(val[0]["VAL"]) ) + *idx;
-                sql.emit( regex::format(
-                    "UPDATE BUCKET SET VAL='${1}' WHERE KID='${0}'"
-                , cmd.kid, encoder::base64::atob( string::to_string(*idx) )
+                *idx = string::to_llong( encoder::base64::btoa(item[0]["VAL"]) ) + *idx;
+                sql.async( regex::format(
+                    "UPDATE BUCKET SET VAL='${1}' WHERE RID='${0}' LIMIT 1"
+                , item[0]["RID"], encoder::base64::atob( string::to_string(*idx) )
                 ));
 
             } else {
 
-                *idx = 0 + *idx; sql.emit( regex::format( R"(
+                *idx = 0 + *idx; sql.async( regex::format( R"(
                     INSERT INTO BUCKET ( NOW, KID, EXP, RID, VAL )
                     VALUES  ( ${0}, '${1}', ${2}, '${3}', '${4}' );
                 )", date::now(),cmd.kid ,
@@ -591,7 +594,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "DEC"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -599,29 +601,27 @@ namespace cocoDB {
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
             auto idx = type::bind( new llong( string::to_llong(cmd.val) ) );
 
-            auto sql = get_sqlite_db( dir ); auto val = sql.exec( regex::format(
-                "SELECT VAL, EXP FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 2"
-            , cmd.kid, date::now() )); if( val.size()>1 ){ sql.exec( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' OR (EXP<>0 AND EXP<${1})"
-            , cmd.kid, date::now() ));}
-
+            auto sql = get_sqlite_db( dir ); auto item=sql.exec( regex::format(
+                "SELECT VAL,RID FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT 1"
+            , cmd.kid, date::now() ));
+            
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            if( val.size()==1 ) {
+            if( !item.empty() ) {
 
-                *idx = string::to_llong( encoder::base64::btoa(val[0]["VAL"]) ) - *idx;
-                sql.emit( regex::format(
-                    "UPDATE BUCKET SET VAL='${1}' WHERE KID='${0}'"
-                , cmd.kid, encoder::base64::atob( string::to_string(*idx) )
+                *idx = string::to_llong( encoder::base64::btoa(item[0]["VAL"]) ) - *idx;
+                sql.async( regex::format(
+                    "UPDATE BUCKET SET VAL='${1}' WHERE RID='${0}' LIMIT 1"
+                , item[0]["RID"], encoder::base64::atob( string::to_string(*idx) )
                 ));
 
             } else {
 
-                *idx = 0 - *idx; sql.emit( regex::format( R"(
+                *idx = 0 - *idx; sql.async( regex::format( R"(
                     INSERT INTO BUCKET ( NOW, KID, EXP, RID, VAL )
                     VALUES  ( ${0}, '${1}', ${2}, '${3}', '${4}' );
                 )", date::now(),cmd.kid ,
@@ -648,7 +648,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "TRIM" ;
 
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
@@ -669,10 +668,10 @@ namespace cocoDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format(
+            sql.async( regex::format(
                 "DELETE FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1}) LIMIT ${2} OFFSET ${3}"
             , cmd.kid, date::now(), slc[2], slc[0] ) );
 
@@ -694,7 +693,6 @@ namespace cocoDB {
 
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
-        cmd.key = args[1];
         cmd.cmd = "RANGE";
 
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
@@ -716,8 +714,10 @@ namespace cocoDB {
             sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( regex::format( "*${0}\r\n", blk.size() ) );
-                auto n=blk.first(); while(n!=nullptr){ cli.write(n->data); n=n->next; }
+                auto data = regex::format( "*${0}\r\n", blk.size() );
+                auto n=blk.first(); while( n!=nullptr ){ 
+                    data += n->data; n=n->next; 
+                }   cli.write( data );
             });
 
             sql.exec( regex::format(
@@ -746,7 +746,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "PUSH" ;
         cmd.exp = "0"    ;
 
@@ -757,10 +756,10 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format( R"(
+            sql.async( regex::format( R"(
                 INSERT INTO BUCKET ( NOW, RID, KID, EXP, VAL )
                 VALUES  ( ${0}, '${1}', '${2}', ${3}, '${4}' );
             )", date::now(),   get_item_rid( cmd ),
@@ -787,7 +786,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "POP"  ;
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -800,14 +798,14 @@ namespace cocoDB {
             )); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
             if( val.empty() ){ throw except_t(); }
 
-            sql.emit( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' LIMIT 1 OFFSET ${1}"
-            , cmd.kid, string::to_ulong( val[0]["COUNT(*)"] )-1 ));
+            sql.async( regex::format(
+                "DELETE FROM BUCKET WHERE KID='${0}' WHERE (EXP=0 OR EXP>${2}) LIMIT 1 OFFSET ${1}"
+            , cmd.kid, string::to_ulong( val[0]["COUNT(*)"] )-1, date::now() ));
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -827,7 +825,6 @@ namespace cocoDB {
         cmd.fid = get_item_fid(args[1]);
         cmd.kid = get_item_kid(args[1]);
         cmd.val = args[2];
-        cmd.key = args[1];
         cmd.cmd = "SHIFT";
 
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
@@ -838,12 +835,12 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format(
-                "DELETE FROM BUCKET WHERE KID='${0}' LIMIT 1"
-            , cmd.kid ));
+            sql.async( regex::format(
+                "DELETE FROM BUCKET WHERE KID='${0}' WHERE (EXP=0 OR EXP>${1}) LIMIT 1"
+            , cmd.kid, date::now() ));
 
         } catch(...) {
               apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -873,10 +870,10 @@ namespace cocoDB {
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
                 object_t({ { "fid", cmd.fid },{ "qid", cmd.qid } }) ));
-                cli.write( ":1\r\n" );
+                cli.write( "+OK\r\n" );
             });
 
-            sql.emit( regex::format(
+            sql.async( regex::format(
                 "DELETE FROM BUCKET WHERE (EXP<>0 AND EXP<${0})"
             , date::now() ));
 
