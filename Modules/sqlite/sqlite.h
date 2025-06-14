@@ -38,10 +38,10 @@ public:
     gnStart ; coWait( self->is_used()==1 ); self->use();
 
         num_fields = sqlite3_column_count( res ); for( x=0; x<num_fields; x++ )
-        { col.push(string_t((char*)sqlite3_column_name(res,x))); } coYield(1);
+        { col.push(string_t((char*)sqlite3_column_name(res,x))); }
 
-        coWait((err=sqlite3_step(res))==SQLITE_BUSY );
-        if( err!=SQLITE_ROW || self->is_closed() ){ coGoto(2); } do {
+        coYield(1); coWait((err=sqlite3_step(res))==SQLITE_BUSY );
+        if( err!=SQLITE_ROW || !self->is_used() ){ coGoto(2); } do {
 
             auto object = map_t<string_t,string_t>();
 
@@ -165,15 +165,15 @@ public:
     bool is_available() const noexcept { return obj->state != 0; }
     bool is_used()      const noexcept { return obj->used; }
 
-    void close()        const noexcept { if( obj->state==0 ){ return; } obj->state=0; }
+    void close()        const noexcept { if( obj->state==0 ){ return; } obj->state=0; release(); }
 
     /*─······································································─*/
 
     void free() const noexcept {
-        if( obj->fd == nullptr ){ return; }
-        if( obj->state == 0 )   { return; }
-        sqlite3_close( obj->fd ); obj->state =0;
-        release(); onUse.clear(); onRelease.clear();
+        if( obj->fd==nullptr ){ return; }
+        if( obj->state==0 )   { return; }
+        sqlite3_close(obj->fd); close();
+        onUse.clear();onRelease.clear();
     }
 
 };}

@@ -5,7 +5,7 @@
 namespace cocoDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
     apify_host_t<ws_t> app; queue_t<object_t> list;
     auto flush = type::bind( new bool(false) );
-    map_t<string_t,object_t> queue;
+    map_t<string_t,string_t> queue;
 
     app.on("WIPE","/api/v1/db",[=]( apify_t<ws_t> cli ){ *flush=true; });
 
@@ -31,9 +31,9 @@ namespace cocoDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
             "rm -R ./${0}/*", process::env::get("STORAGE_PATH")
         )); *flush=false; }
 
-        do{ auto n = list.get(); list.next();       if( n==nullptr ) { break; }
-        if( n->data["cli"].as<ws_t>().is_closed() )   { list.erase(n); break; }
-        if( queue.has(n->data["fid"].as<string_t>()) ){                break; }
+        do{ auto n =list.first(); while( n!=nullptr ) { auto m=n->next;
+        if( n->data["cli"].as<ws_t>().is_closed() )   { list.erase(n); n=m; continue; }
+        if( queue.has(n->data["fid"].as<string_t>()) ){                n=m; continue; }
 
             apify_t<ws_t>( n->data["cli"].as<ws_t>() ).emit(
                 "LOCK", "/api/v1/db", json::stringify(
@@ -42,17 +42,7 @@ namespace cocoDB { apify_host_t<ws_t> run_v1_ws_server_routine(){
                 })
             ));
 
-            queue[n->data["fid"].as<string_t>()] = object_t({
-                { "cli", n->data["cli"].as<ws_t>() },
-                { "stm", process::now() + 1000     }
-            });
-            
-        list.erase(n); } while(0);
-
-        do{ auto n=queue.raw().get(); queue.raw().next();
-        if( n == nullptr ) { break; }
-        if( n->data.second["cli"].as<ws_t> ().is_closed() ) 
-          { queue.erase( n->data.first ); }} while(0);
+        queue[n->data["fid"].as<string_t>()]=nullptr; list.erase(n); n=m; }} while(0);
 
     coGoto(0) ; coStop
     });

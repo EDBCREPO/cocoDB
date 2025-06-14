@@ -23,16 +23,33 @@ namespace cocoDB { string_t get_item_fid( string_t key ){
 
 namespace cocoDB { ptr_t<ulong> get_slice_range( long x, long y, ulong size ){
 
-    if( size==0 ){ return nullptr; } // if( y>0 ){ y--; }
-    if( x == y  ){ return ptr_t<ulong>({ (ulong)0, size, size }); }
-
+    if( size == 0 || x == y ){ return nullptr; } 
+    
+    if( y > 0 ){ y--;        }
     if( x < 0 ){ x = size+x; } if( (ulong)x > size ){ return nullptr; }
     if( y < 0 ){ y = size+y; } if( (ulong)y > size ){ y = size;       }
     if( y < x ){ return nullptr; }
 
     ulong a = clamp( (ulong)y, 0UL, size );
     ulong b = clamp( (ulong)x, 0UL, a    );
-    ulong c = a - b;
+    ulong c = a - b + 1;
+
+    return ptr_t<ulong>({ b, a, c });
+
+}}
+
+namespace cocoDB { ptr_t<ulong> get_slice_trim( long x, long y, ulong size ){
+
+    if( size == 0 || x == y ){ return nullptr; } 
+    
+    if( y > 0 ){ y--;        }
+    if( x < 0 ){ x = size+x; } if( (ulong)x > size ){ return nullptr; }
+    if( y < 0 ){ y = size+y; } if( (ulong)y > size ){ return nullptr; }
+    if( y < x ){ return nullptr; }
+
+    ulong a = clamp( (ulong)y, 0UL, size );
+    ulong b = clamp( (ulong)x, 0UL, a    );
+    ulong c = a - b + 1;
 
     return ptr_t<ulong>({ b, a, c });
 
@@ -56,13 +73,6 @@ namespace cocoDB { ulong get_exp_val( string_t& val ){
     auto   EXP= string::to_ulong( val );
     auto   NOW= date  ::now();
     return EXP==0?0:(EXP+NOW);
-}}
-
-namespace cocoDB { string_t get_item_rid( cmd_t& item ){
-    auto hash= crypto::hash::SHA1();
-    hash.update( string::to_string(process::now()) );
-    hash.update( encoder::key::generate(32) );
-    hash.update( item.kid ); return hash.get();
 }}
 
 /*────────────────────────────────────────────────────────────────────────────*/
@@ -186,8 +196,8 @@ namespace cocoDB {
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            auto lim = type::bind( string::to_ulong( args[4] ) );
-            auto off = type::bind( string::to_ulong( args[3] ) );
+            auto lim = type::bind( string::to_int( args[4] ) );
+            auto off = type::bind( string::to_int( args[3] ) );
             auto blk = queue_t<string_t>();
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
@@ -205,7 +215,7 @@ namespace cocoDB {
                 auto val = encoder::base64::btoa( item["VAL"] );
                 if( !regex::test( val, cmd.val ) ){ return; }
                 if( *off != 0 ){ *off-=1; return;  }
-                if( *lim == 0 ){ throw except_t(); }*lim-=1;
+                if( *lim == 0 ){ throw ""; }*lim-=1;
                 blk.push( regex::format( "$${0}\r\n${1}\r\n", val.size(), val ));
             } catch(...) { sql.close(); } });
 
@@ -293,7 +303,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -328,7 +338,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
             auto dne = type::bind( new bool(0) );
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
@@ -366,7 +376,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
             auto blk = queue_t<string_t>(); 
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
@@ -431,7 +441,7 @@ namespace cocoDB {
                 sql.exec( regex::format( R"(
                     INSERT INTO BUCKET ( NOW, RID, KID, EXP, VAL )
                     VALUES  ( ${0}, '${1}', '${2}', ${3}, '${4}' );
-                )", date::now(), get_item_rid( cmd ),
+                )", date::now(), cmd.qid,
                     cmd.kid, get_exp_val( cmd.exp ),
                     encoder::base64::atob(cmd.val)
                 ));
@@ -461,7 +471,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
             auto dne = type::bind( new bool(0) );
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
@@ -508,7 +518,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -570,7 +580,7 @@ namespace cocoDB {
                     INSERT INTO BUCKET ( NOW, KID, EXP, RID, VAL )
                     VALUES  ( ${0}, '${1}', ${2}, '${3}', '${4}' );
                 )", date::now(),cmd.kid ,
-                    get_exp_val(cmd.exp), get_item_rid(cmd),
+                    get_exp_val(cmd.exp), cmd.qid,
                     encoder::base64::atob( string::to_string( *idx ) )
                 ));
             }
@@ -625,7 +635,7 @@ namespace cocoDB {
                     INSERT INTO BUCKET ( NOW, KID, EXP, RID, VAL )
                     VALUES  ( ${0}, '${1}', ${2}, '${3}', '${4}' );
                 )", date::now(),cmd.kid ,
-                    get_exp_val(cmd.exp), get_item_rid(cmd),
+                    get_exp_val(cmd.exp), cmd.qid,
                     encoder::base64::atob( string::to_string( *idx ) )
                 ));
             }
@@ -653,16 +663,16 @@ namespace cocoDB {
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir ); auto raw = sql.exec( regex::format(
                 "SELECT COUNT(*) FROM BUCKET WHERE KID='${0}' AND (EXP=0 OR EXP>${1})"
             , cmd.kid, date::now() )); if( raw.empty() ){ throw ""; }
 
-            auto slc = get_slice_range(
-                string::to_ulong(args[2]),
-                string::to_ulong(args[3]),
-                string::to_ulong(raw[0]["COUNT(*)"])
+            auto slc = get_slice_trim(
+                string::to_int  (args[2]),
+                string::to_int  (args[3]),
+                string::to_ulong(raw [0]["COUNT(*)"])
             );  if( slc.empty() ){ throw ""; }
 
             sql.onRelease.once([=](){
@@ -698,7 +708,7 @@ namespace cocoDB {
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto blk = queue_t<string_t>(); auto sql = get_sqlite_db( dir ); 
             auto raw = sql.exec( regex::format(
@@ -706,9 +716,9 @@ namespace cocoDB {
             , cmd.kid, date::now() )); if( raw.empty() ){ throw ""; }
 
             auto slc = get_slice_range(
-                string::to_ulong(args[2]),
-                string::to_ulong(args[3]),
-                string::to_ulong(raw[0]["COUNT(*)"])
+                string::to_int  (args[2]),
+                string::to_int  (args[3]),
+                string::to_ulong(raw [0]["COUNT(*)"])
             );  if( slc.empty() ){ throw ""; }
 
             sql.onRelease.once([=](){
@@ -762,7 +772,7 @@ namespace cocoDB {
             sql.async( regex::format( R"(
                 INSERT INTO BUCKET ( NOW, RID, KID, EXP, VAL )
                 VALUES  ( ${0}, '${1}', '${2}', ${3}, '${4}' );
-            )", date::now(),   get_item_rid( cmd ),
+            )", date::now(), cmd.qid,
                 cmd.kid,  get_exp_val( cmd.exp ),
                 encoder::base64::atob( cmd.val )
             ));
@@ -791,7 +801,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir );  auto val = sql.exec( regex::format(
                 "SELECT COUNT(*) FROM BUCKET WHERE KID='${0}'", cmd.kid
@@ -801,7 +811,7 @@ namespace cocoDB {
                 cli.write( "+OK\r\n" );
             });
 
-            if( val.empty() ){ throw except_t(); }
+            if( val.empty() ){ throw ""; } if( val[0]["COUNT(*)"] == "0" ){ throw ""; }
 
             sql.async( regex::format(
                 "DELETE FROM BUCKET WHERE KID='${0}' WHERE (EXP=0 OR EXP>${2}) LIMIT 1 OFFSET ${1}"
@@ -830,7 +840,7 @@ namespace cocoDB {
         cmd.callback = ([]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
@@ -865,7 +875,7 @@ namespace cocoDB {
         cmd.callback = ([=]( socket_t cli, cmd_t cmd ){ try {
 
             auto dir = path::join( process::env::get("STORAGE_PATH"), cmd.fid );
-            if( !fs::exists_file(dir) ){ throw except_t(); }
+            if( !fs::exists_file(dir) ){ throw ""; }
 
             auto sql = get_sqlite_db( dir ); sql.onRelease.once([=](){
                 apify::add( *ws_client ).emit( "UNLOCK", "/api/v1/db", json::stringify(
