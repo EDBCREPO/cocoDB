@@ -34,7 +34,7 @@ namespace cocoDB { void add_cmd( socket_t cli, string_t cmd ){ try {
     elif( regex::test(match[0],"multi"   ,true) ){ cmd_next(match,list);         continue; }
     elif( regex::test(match[0],"flushall",true) ){ cmd_flushall(match,list);     continue; } throw ""; }
 
-    auto task = _task_(); process::task::add( task, list, cli );
+    auto task = _task_(); process::add( task, list, cli );
 
 } catch(...) { cli.write( "-something went wrong\r\n" ); cli.close(); } }}
 

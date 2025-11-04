@@ -35,7 +35,7 @@ protected:
 public:
 
     template< class U, class V, class Q > coEmit( U& res, V& cb, Q& self ){
-    gnStart ; coWait( self->is_used()==1 ); self->use();
+    coBegin ; coWait( self->is_used()==1 ); self->use();
 
         num_fields = sqlite3_column_count( res ); for( x=0; x<num_fields; x++ )
         { col.push(string_t((char*)sqlite3_column_name(res,x))); }
@@ -54,7 +54,7 @@ public:
         cb(object); } while(0); coStay(1); coYield(2);
         sqlite3_finalize(res); self->release();
 
-    gnStop
+    coFinish
     }
 
 };}}
@@ -69,7 +69,7 @@ protected:
     struct NODE {
         sqlite3 *fd = nullptr;
         bool   used = 0;
-        int   state = 0;
+        bool  state = 0;
     };  ptr_t<NODE> obj;
 
 public:
@@ -85,7 +85,7 @@ public:
 
     sqlite_t ( string_t path ) : obj( new NODE ) {
         if( sqlite3_open( path.data(), &obj->fd ) ) {
-            process::error( "SQL Error: ", sqlite3_errmsg(obj->fd) );
+            throw except_t( "SQL Error: ", sqlite3_errmsg(obj->fd) );
         return; } obj->state = 1;
     }
 
@@ -96,12 +96,12 @@ public:
     array_t<sql_item_t> exec( const string_t& cmd ) const { queue_t<sql_item_t> arr;
         function_t<void,sql_item_t> cb =[&]( sql_item_t args ){ arr.push(args); };
         if( cmd.empty() || obj->state==0 || obj->fd==nullptr )
-          { process::error( "SQL Error: closed" ); } sqlite3_stmt *res;
+          { throw except_t( "SQL Error: closed" ); } sqlite3_stmt *res;
 
         if( sqlite3_prepare_v2( obj->fd, cmd.get(), -1, &res, NULL ) != SQLITE_OK ) 
-          { process::error( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); } 
+          { throw except_t( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); } 
         
-        if( res==NULL ) { process::error( "SQL Error: something went wrong" ); }
+        if( res==NULL ) { throw except_t( "SQL Error: something went wrong" ); }
 
         _sqlite_::cb task; auto self = type::bind( this );
         process::await( task, res, cb, self ); 
@@ -111,15 +111,15 @@ public:
 
     void exec( const string_t& cmd, const function_t<void,sql_item_t>& cb ) const {
         if( cmd.empty() || obj->state==0 || obj->fd==nullptr )
-          { process::error( "SQL Error: closed" ); } sqlite3_stmt *res;
+          { throw except_t( "SQL Error: closed" ); } sqlite3_stmt *res;
 
         if( sqlite3_prepare_v2( obj->fd, cmd.get(), -1, &res, NULL ) != SQLITE_OK )
-          { process::error( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); }
+          { throw except_t( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); }
         
-        if( res==NULL ) { process::error( "SQL Error: something went wrong" ); }
+        if( res==NULL ) { throw except_t( "SQL Error: something went wrong" ); }
 
         _sqlite_::cb task; auto self = type::bind( this );
-        process::poll::add( task, res, cb, self );
+        process::add( task, res, cb, self );
 
     }
 
@@ -127,28 +127,28 @@ public:
 
     void async( const string_t& cmd ) const {
         if( cmd.empty() || obj->state==0 || obj->fd==nullptr )
-          { process::error( "SQL Error: closed" ); } sqlite3_stmt *res;
+          { throw except_t( "SQL Error: closed" ); } sqlite3_stmt *res;
 
         if( sqlite3_prepare_v2( obj->fd, cmd.get(), -1, &res, NULL ) != SQLITE_OK )
-          { process::error( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); }
+          { throw except_t( "SQL Error: ", sqlite3_errmsg( obj->fd ) ); }
         
-        if( res==NULL ) { process::error( "SQL Error: something went wrong" ); }
+        if( res==NULL ) { throw except_t( "SQL Error: something went wrong" ); }
 
         function_t<void,sql_item_t> cb = [&]( sql_item_t ){};
         _sqlite_::cb task; auto self = type::bind( this ); 
-        process::poll::add( task, res, cb, self );
+        process::add( task, res, cb, self );
 
     }
 
     void await( const string_t& cmd ) const {
         if( cmd.empty() || obj->state==0 || obj->fd==nullptr )
-          { process::error( "SQL Error: closed" ); } sqlite3_stmt *res;
+          { throw except_t( "SQL Error: closed" ); } sqlite3_stmt *res;
 
         if( sqlite3_prepare_v2( obj->fd, cmd.get(), -1, &res, NULL ) != SQLITE_OK ) {
-            process::error( "SQL Error: ", sqlite3_errmsg( obj->fd ) );
+            throw except_t( "SQL Error: ", sqlite3_errmsg( obj->fd ) );
         return; }
         
-        if( res==NULL ) { process::error( "SQL Error: something went wrong" ); }
+        if( res==NULL ) { throw except_t( "SQL Error: something went wrong" ); }
 
         function_t<void,sql_item_t> cb = [&]( sql_item_t ){};
         _sqlite_::cb task; auto self = type::bind( this ); 

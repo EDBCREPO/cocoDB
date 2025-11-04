@@ -822,7 +822,7 @@ namespace cocoDB {
 
 namespace cocoDB { void run_v1_process() {
     
-    process::task::add( coroutine::add( COROUTINE(){
+    process::add( coroutine::add( COROUTINE(){
     coBegin ; coDelay( TIME_MINUTES( 30 ) );
 
         do{ for( auto x: fs::read_file( process::env::get("STORAGE_PATH") ) ){
